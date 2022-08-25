@@ -6,6 +6,7 @@ import { http } from '@/lib/http'
 import { getUrl, uploadBuf } from '@/lib/oss'
 import { redisArchiveClient, redisWorkerClient } from '@/lib/redis'
 import { ImageMessage } from '@/types'
+import { delay } from '@/utils'
 
 const getTask = async () => {
   const redis = await redisArchiveClient.getShared()
@@ -36,25 +37,27 @@ const archive = async (imageUrl: string): Promise<[string, string]> => {
 const loop = async () => {
   try {
     const message = await getTask()
-    if (!message) return
-    const shortenIds: [string, string][] = []
-    for (const image of message.images) {
-      const shortenId = await archive(image)
-      shortenIds.push(shortenId)
-    }
+    if (message) {
+      const shortenIds: [string, string][] = []
+      for (const image of message.images) {
+        const shortenId = await archive(image)
+        shortenIds.push(shortenId)
+      }
 
-    let replyMsg = `图片已归档：\n`
-    for (const [thumbnail, orig] of shortenIds) {
-      replyMsg += `[CQ:image,file=${thumbnail}] ${orig}\n`
+      let replyMsg = `图片已归档：\n`
+      for (const [thumbnail, orig] of shortenIds) {
+        replyMsg += `[CQ:image,file=${thumbnail}] ${orig}\n`
+      }
+      await http.post('/send_guild_channel_msg', {
+        guild_id: message.guildId,
+        channel_id: message.channelId,
+        message: replyMsg,
+      })
     }
-    await http.post('/send_guild_channel_msg', {
-      guild_id: message.guildId,
-      channel_id: message.channelId,
-      message: replyMsg,
-    })
   } catch (err) {
     console.log(err)
   }
+  await delay(1000)
   loop()
 }
 
