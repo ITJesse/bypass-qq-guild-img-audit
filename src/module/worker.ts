@@ -1,7 +1,7 @@
 import axios from 'axios'
 import sharp from 'sharp'
 
-import { REDIS_WORKER_MESSAGE_QUEUE } from '@/consts'
+import { REDIS_MESSAGE_RECALL_MARK_PREFIX, REDIS_WORKER_MESSAGE_QUEUE } from '@/consts'
 import { http } from '@/lib/http'
 import { signUrl, uploadBuf } from '@/lib/oss'
 import { redisWorkerClient } from '@/lib/redis'
@@ -27,10 +27,15 @@ const checkMessage = async (message: ImageMessage) => {
 const getTask = async () => {
   const redis = await redisWorkerClient.getShared()
   const res = await redis.blPop(REDIS_WORKER_MESSAGE_QUEUE, 60)
-  if (!res) return
+  if (!res) return null
   const { element: messageData } = res
-  if (!messageData) return
+  if (!messageData) return null
   const message = JSON.parse(messageData) as ImageMessage
+
+  const recall = await redis.get(
+    `${REDIS_MESSAGE_RECALL_MARK_PREFIX}${message.id}`,
+  )
+  if (recall) return null
 
   if (Date.now() - message.time < 10000) {
     await redis.rPush(REDIS_WORKER_MESSAGE_QUEUE, messageData)
@@ -68,7 +73,6 @@ const cropImage = async (url: string) => {
 }
 
 const worker = async () => {
-  const redis = await redisWorkerClient.getShared()
   const message = await getTask()
   if (!message) return
   const pass = await checkMessage(message)
