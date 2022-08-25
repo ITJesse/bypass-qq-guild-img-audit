@@ -1,10 +1,10 @@
 import axios from 'axios'
 import bs58 from 'bs58'
 
-import { REDIS_ARCHIVER_MESSAGE_QUEUE, REDIS_SHORTEN_URL_HSET_KEY } from '@/consts'
+import { REDIS_ARCHIVER_MESSAGE_QUEUE } from '@/consts'
 import { http } from '@/lib/http'
 import { getUrl, uploadBuf } from '@/lib/oss'
-import { redisArchiveClient, redisWorkerClient } from '@/lib/redis'
+import { redisArchiveClient } from '@/lib/redis'
 import { ImageMessage } from '@/types'
 import { delay } from '@/utils'
 
@@ -25,9 +25,7 @@ const archive = async (imageUrl: string): Promise<[string, string]> => {
   const fileKey = await uploadBuf(imageData)
   const hash = Buffer.from(fileKey.replaceAll('/', '').substring(0, 8), 'hex')
   const base58 = bs58.encode(hash)
-  console.log(`[archive][${imageUrl}] base58:`, base58)
-  await redis.hSet(REDIS_SHORTEN_URL_HSET_KEY, base58, fileKey)
-  console.log(`[archive][${imageUrl}] done`)
+  console.log(`[archive][${imageUrl}] done:`, base58)
 
   const thumbnail = `${getUrl(fileKey)}/xs.jpg`
   const orig = `${process.env.BASE_URL}${base58}`

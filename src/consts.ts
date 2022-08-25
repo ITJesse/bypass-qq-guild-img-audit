@@ -1,5 +1,3 @@
-export const REDIS_SHORTEN_URL_HSET_KEY = 'shorten-url'
-
 export const REDIS_WORKER_MESSAGE_QUEUE = 'worker-queue'
 export const REDIS_ARCHIVER_MESSAGE_QUEUE = 'archiver-queue'
 
