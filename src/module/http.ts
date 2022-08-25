@@ -1,6 +1,8 @@
-import bs58 from 'bs58'
-import express from 'express'
+import express, { response } from 'express'
 import morgan from 'morgan'
+
+import { REDIS_SHORTEN_URL_HSET_KEY } from '@/consts'
+import { redisHttpClient } from '@/lib/redis'
 
 const app: express.Express = express()
 
@@ -12,11 +14,11 @@ app.use(
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
-app.get('/s/:base58', async (req, res) => {
-  const { base58 } = req.params
-  const hash = Buffer.from(bs58.decode(base58)).toString('hex')
-  const fileKey =
-    hash.substring(0, 2) + '/' + hash.substring(2, 4) + '/' + hash.substring(4)
+app.get('/s/:hash', async (req, res) => {
+  const redis = await redisHttpClient.getShared()
+  const { hash } = req.params
+  const fileKey = await redis.hGet(REDIS_SHORTEN_URL_HSET_KEY, hash)
+  if (!fileKey) return res.status(404).send('Not Found')
   return res.redirect(301, `${process.env.OSS_BASE_URL}/${fileKey}`)
 })
 
