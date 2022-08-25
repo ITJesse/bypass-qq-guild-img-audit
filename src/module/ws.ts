@@ -3,6 +3,8 @@ import WebSocket from 'ws'
 import {
     REDIS_ARCHIVER_MESSAGE_QUEUE, REDIS_MESSAGE_RECALL_MARK_PREFIX, REDIS_WORKER_MESSAGE_QUEUE
 } from '@/consts'
+import { checkFuncAllow, removeFuncAllow, setFuncAllow } from '@/lib/control'
+import { http } from '@/lib/http'
 import { redisWsClient } from '@/lib/redis'
 import { ImageMessage } from '@/types'
 
@@ -32,21 +34,72 @@ ws.on('message', async (data) => {
     const images: string[] = message
       .filter((e: any) => e.type === 'image')
       .map((e: any) => e.data.url)
+    const messageData: ImageMessage = {
+      id: messageId,
+      images,
+      time: json.time * 1000,
+      guildId: json.guild_id,
+      channelId: json.channel_id,
+    }
+
+    const text = message.find((e: any) => e.type === 'text')?.data.text
+    if (text?.startsWith('/func')) {
+      const [_, method, func] = text.split(' ')
+      if (!['enable', 'disable'].includes(method)) {
+        return
+      }
+      if (!['bypass', 'archive'].includes(func)) {
+        return
+      }
+      const senderId = json.sender.tiny_id
+      if (senderId !== process.env.ADMIN_ID) return
+      if (method === 'enable') {
+        await setFuncAllow(
+          func,
+          `${messageData.guildId}:${messageData.channelId}`,
+        )
+        await http.post('/send_guild_channel_msg', {
+          guild_id: messageData.guildId,
+          channel_id: messageData.channelId,
+          message: `已开启该频道的 ${func} 功能`,
+        })
+      } else if (method === 'disable') {
+        await removeFuncAllow(
+          func,
+          `${messageData.guildId}:${messageData.channelId}`,
+        )
+        await http.post('/send_guild_channel_msg', {
+          guild_id: messageData.guildId,
+          channel_id: messageData.channelId,
+          message: `已关闭该频道的 ${func} 功能`,
+        })
+      }
+    }
 
     if (images.length > 0) {
-      const messageData: ImageMessage = {
-        id: messageId,
-        images,
-        time: json.time * 1000,
-        guildId: json.guild_id,
-        channelId: json.channel_id,
+      if (
+        await checkFuncAllow(
+          'archive',
+          `${messageData.guildId}:${messageData.channelId}`,
+        )
+      ) {
+        await redis.rPush(
+          REDIS_ARCHIVER_MESSAGE_QUEUE,
+          JSON.stringify(messageData),
+        )
       }
-      // Add message to archive list
-      await redis.rPush(
-        REDIS_ARCHIVER_MESSAGE_QUEUE,
-        JSON.stringify(messageData),
-      )
-      await redis.rPush(REDIS_WORKER_MESSAGE_QUEUE, JSON.stringify(messageData))
+
+      if (
+        await checkFuncAllow(
+          'bypass',
+          `${messageData.guildId}:${messageData.channelId}`,
+        )
+      ) {
+        await redis.rPush(
+          REDIS_WORKER_MESSAGE_QUEUE,
+          JSON.stringify(messageData),
+        )
+      }
     }
   }
 })

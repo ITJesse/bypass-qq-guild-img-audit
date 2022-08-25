@@ -27,7 +27,7 @@ const createLazySingleton = <A>(gen: () => Promise<A>) => {
   return { getShared }
 }
 
-const createRedisClient = (name: string, url: string) =>
+export const createRedisClient = (name: string, url: string) =>
   createLazySingleton(async () => {
     const client = redis.createClient({ url })
     client.on('error', (e) => {
