@@ -42,6 +42,29 @@ ws.on('message', async (data) => {
       channelId: json.channel_id,
     }
 
+    const jsonData = message.find((e: any) => e.type === 'json')?.data?.data
+    if (jsonData && typeof jsonData === 'string') {
+      const data = JSON.parse(jsonData)
+      const desc = data.meta.detail_1.desc
+      const preview = data.meta.detail_1.preview
+      const url = data.meta.detail_1.qqdocurl
+      if (!url) return
+      let content = '该消息手机和电脑都可以看'
+      if (preview) {
+        content += `[CQ:image,file=http://${preview}]`
+      }
+      if (desc) {
+        content += desc
+      }
+      content += url
+      await http.post('/send_guild_channel_msg', {
+        guild_id: messageData.guildId,
+        channel_id: messageData.channelId,
+        message: content,
+      })
+      return
+    }
+
     const text = message.find((e: any) => e.type === 'text')?.data.text
     if (text?.startsWith('/func')) {
       const [_, method, func] = text.split(' ')
