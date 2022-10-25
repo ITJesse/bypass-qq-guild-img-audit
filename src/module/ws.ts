@@ -45,13 +45,25 @@ ws.on('message', async (data) => {
     const jsonData = message.find((e: any) => e.type === 'json')?.data?.data
     if (jsonData && typeof jsonData === 'string') {
       const data = JSON.parse(jsonData)
-      const desc = data.meta.detail_1.desc
-      const preview = data.meta.detail_1.preview
-      const url = data.meta.detail_1.qqdocurl
+      let desc = ''
+      let preview = ''
+      let url = ''
+      if (data.news) {
+        desc = data.news.title
+        preview = data.news.preview
+        url = data.news.jumpUrl
+      } else {
+        desc = data.meta.detail_1.desc
+        preview = data.meta.detail_1.preview
+        url = data.meta.detail_1.qqdocurl
+      }
+      if (!preview.startsWith('http')) {
+        preview = 'http://' + preview
+      }
       if (!url) return
       let content = '该消息手机和电脑都可以看'
       if (preview) {
-        content += `[CQ:image,file=http://${preview}]`
+        content += `[CQ:image,file=${preview}]`
       }
       if (desc) {
         content += desc
